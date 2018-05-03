@@ -1,16 +1,10 @@
----
-layout: post
-title: 探秘 Mach-O 文件
-date: 2018-03-22 23:06:52 +0800
-comments: true
-categories: 
----
+# 探秘 Mach-O 文件
+
 之前负责项目的包体积优化学习了 Mach-O 文件的格式，那么 Mach-O 究竟是怎么样的文件，知道它的组成之后我们又能做点什么？本文会从 Mach-O 文件的介绍讲起，再看看认识它后的一些实际应用。
-<!--more-->
 
 由于本文篇幅有点长，这里添加了文章导航方便阅读
 
-* [Mach-O 文件格式](#Mach-O 文件格式)
+* [Mach-O 文件格式](#mach-O 文件格式)
 * [减少包大小][1]
 * [获取调用堆栈][2]
 * [如何用 MachO 文件关联类的方法名](#如何用 MachO 文件关联类的方法名)
@@ -148,9 +142,13 @@ Load Commands 的定义比较简单：
 写到这里，算是快速过了一遍 Mach-O 文件的基本概念，接着聊聊可以怎样减少项目的体积。
 
 <h3 id="减少包大小">减少包大小</h3>
+
 iOS 的包主要由可执行文件、资源文件（图片）等文件组成，所以可以从这两大头文件入手优化。
+
 #### 可执行文件瘦身
+
 我们的项目中难免会存在一些没使用的类或方法，由于 OC 的动态特性，编译器会对所有的源文件进行编译，找出并删除没用到的类或方法可以减少可执行文件大小。
+
 上文中提到了 `__objc_classlist` 和 `__objc_classrefs `，它们分别表示项目中全部类列表和项目中被引用的类列表，那么取两者之差，就能删除一些项目中没使用的类文件。但是在删除过程中记住要在项目中全局搜索确认下，看看有没有通过字符串调用无引用的类的方法，原因还是 OC 是动态语言。
 在看具体做法之前，顺带提一下我公司的项目组成。我们维护着俩客户端，共用着一个基础库（lib 库），可能有时由于产品的需求变更或者为了产品功能的预留导致 lib 库中只有着某个端使用的代码，我在上述的做法中对脚本做了稍微改进，以防删除了 lib 库的代码，导致另一个端跑不起来，下面介绍通用的做法：
 
@@ -162,38 +160,41 @@ iOS 的包主要由可执行文件、资源文件（图片）等文件组成，�
 #### 压缩图片资源
 这点就跟本文的主题没什么关系，不感兴趣可以略过。
 压缩 app 中的图片是我做的另一个努力，虽然 Xcode 会压一遍，但是经我压缩后打包发现包还是会少个将近 1m，这里用到的工具是 ImageOptim，贴出我的三脚猫 python：
-	all_file_size = 0
-	all_file_count = 0
+
+```py
+all_file_size = 0
+all_file_count = 0
 	
-	def fileDriector(filePath):
-	    global all_file_size, all_file_count
+def fileDriector(filePath):
+    global all_file_size, all_file_count
 	
-	    for file in os.listdir(filePath):
-	        if os.path.isdir(filePath + '/' + file):
-	            if file != 'Pods' and not file.startswith('.') and not file.endswith('.framework') \
-	                    and not file.endswith('.bundle') and not file.endswith('.a') and file != 'libs' \
-	                    or file.endswith('.xcassets') or file.endswith('.imageset'):
-	                the_path = filePath + '/' + file
-	                fileDriector(the_path)
-	        elif file.endswith('.png') or file.endswith('.jpg'):
-	            fileName = filePath + '/' + file
+    for file in os.listdir(filePath):
+        if os.path.isdir(filePath + '/' + file):
+            if file != 'Pods' and not file.startswith('.') and not file.endswith('.framework') \
+                    and not file.endswith('.bundle') and not file.endswith('.a') and file != 'libs' \
+                    or file.endswith('.xcassets') or file.endswith('.imageset'):
+                the_path = filePath + '/' + file
+                fileDriector(the_path)
+        elif file.endswith('.png') or file.endswith('.jpg'):
+            fileName = filePath + '/' + file
 	
-	            comand_line = "echo %s | imageoptim" % fileName
-	            test = subprocess.Popen(comand_line, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-	            output = test.communicate()[0]
+            comand_line = "echo %s | imageoptim" % fileName
+            test = subprocess.Popen(comand_line, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+            output = test.communicate()[0]
 	
-	            numberList = re.findall('\.?\d+\.?\d*kb', output)
-	            lastSize = numberList[-1]
+            numberList = re.findall('\.?\d+\.?\d*kb', output)
+            lastSize = numberList[-1]
 	
-	            lastSizeList = re.findall('\.?\d+\.?\d*', lastSize)
-	            saveSize = lastSizeList[0]
-	            if saveSize.startswith('.'):
-	                saveSize = '0' + saveSize
+            lastSizeList = re.findall('\.?\d+\.?\d*', lastSize)
+            saveSize = lastSizeList[0]
+            if saveSize.startswith('.'):
+                saveSize = '0' + saveSize
 	
-	            finalSize = float(saveSize)
-	            all_file_size += finalSize
-	            all_file_count += 1
-	            print output
+            finalSize = float(saveSize)
+            all_file_size += finalSize
+            all_file_count += 1
+            print output
+```
 
 其他的一些减包方案就不展开了，接下来我试着分析一下 bestswifter 大神的 `BSBacktraceLogger `
 
@@ -204,19 +205,23 @@ iOS 的包主要由可执行文件、资源文件（图片）等文件组成，�
 
 可以看到 Debug 模式下，符号表文件会存入可执行文件中，而 Release 模式则会生成出 DSYM 文件，我们平常使用 Bugly 等工具上传的就是这份 DSYM 文件，DSYM 也是种 Mach-O 文件。在 Debug 模式，由于符号表在内存中，这为我们符号化堆栈提供了可能性。
 
-	bool bs_fillThreadStateIntoMachineContext(thread_t thread, _STRUCT_MCONTEXT *machineContext) {
-	    mach_msg_type_number_t state_count = BS_THREAD_STATE_COUNT;
-	    kern_return_t kr = thread_get_state(thread, BS_THREAD_STATE, (thread_state_t)&machineContext->__ss, &state_count);
-	    return (kr == KERN_SUCCESS);
-	}
+```objc
+bool bs_fillThreadStateIntoMachineContext(thread_t thread, _STRUCT_MCONTEXT *machineContext) {
+    mach_msg_type_number_t state_count = BS_THREAD_STATE_COUNT;
+    kern_return_t kr = thread_get_state(thread, BS_THREAD_STATE, (thread_state_t)&machineContext->__ss, &state_count);
+    return (kr == KERN_SUCCESS);
+}
+```
 
 `thread_get_state ` 函数获取线程执行状态（例如寄存器），传入 `_STRUCT_MCONTEXT ` 结构体，`_STRUCT_MCONTEXT ` 在不同的 cpu 架构会有所不同。
 
-	uintptr_t bs_mach_instructionAddress(mcontext_t const machineContext){
-	    return machineContext->__ss.BS_INSTRUCTION_ADDRESS;
-	}
+```objc
+uintptr_t bs_mach_instructionAddress(mcontext_t const machineContext){
+    return machineContext->__ss.BS_INSTRUCTION_ADDRESS;
+}
 	
-	const uintptr_t instructionAddress = bs_mach_instructionAddress(&machineContext);
+const uintptr_t instructionAddress = bs_mach_instructionAddress(&machineContext);
+```
 
 获取当前指令的地址，也就是当前的栈帧，即当前被调用的函数。下面先讲下关于栈帧的概念。
 
@@ -236,53 +241,70 @@ LR 寄存器在子程序调用时会存储 PC 的值，即返回值。
 
 为了方便获取栈帧，干脆构造一个栈帧的结构体，以下代码来自 KSCrash，它的注释已经很好的讲明了结构体的原由，BSBacktraceLogger 与之类似。
 
-	/** Represents an entry in a frame list.
-	 * This is modeled after the various i386/x64 frame walkers in the xnu source,
-	 * and seems to work fine in ARM as well. I haven't included the args pointer
-	 * since it's not needed in this context.
-	 */
-	typedef struct FrameEntry
-	{
-	    /** The previous frame in the list. */
-	    struct FrameEntry* previous;
+```objc
+/** Represents an entry in a frame list.
+ * This is modeled after the various i386/x64 frame walkers in the xnu source,
+ * and seems to work fine in ARM as well. I haven't included the args pointer
+ * since it's not needed in this context.
+ */
+typedef struct FrameEntry
+{
+    /** The previous frame in the list. */
+    struct FrameEntry* previous;
 	
-	    /** The instruction address. */
-	    uintptr_t return_address;
-	} FrameEntry;
+    /** The instruction address. */
+    uintptr_t return_address;
+} FrameEntry;
+```
 
 之后，递归获取函数栈帧
-	for(; i < 50; i++) {
-	        backtraceBuffer[i] = frame.return_address;
-	        if(backtraceBuffer[i] == 0 ||
-	           frame.previous == 0 ||
-	           bs_mach_copyMem(frame.previous, &frame, sizeof(frame)) != KERN_SUCCESS) {
-	            break;
-	        }
-	    }
+
+```objc
+for(; i < 50; i++) {
+        backtraceBuffer[i] = frame.return_address;
+        if(backtraceBuffer[i] == 0 ||
+           frame.previous == 0 ||
+           bs_mach_copyMem(frame.previous, &frame, sizeof(frame)) != KERN_SUCCESS) {
+            break;
+        }
+    }
+```
 
 #### 符号化
 符号化地址的大致思路分三步：1. 获取地址所在的内存镜像；2. 定位到内存镜像的符号表；3. 再从符号表中找到目标地址的符号。
 
 ##### 找到地址所在的内存镜像
-	uint32_t bs_imageIndexContainingAddress(const uintptr_t address) {
-	    const uint32_t imageCount = _dyld_image_count();
-	    const struct mach_header* header = 0;
+
+```objc
+uint32_t bs_imageIndexContainingAddress(const uintptr_t address) {
+    const uint32_t imageCount = _dyld_image_count();
+    const struct mach_header* header = 0;
 	
-	    for(uint32_t iImg = 0; iImg < imageCount; iImg++) {
-	        header = _dyld_get_image_header(iImg);
- 遍历 image，得到指向 image header 的指针
-	uintptr_t addressWSlide = address - (uintptr_t)_dyld_get_image_vmaddr_slide(iImg);
-	uintptr_t cmdPtr = bs_firstCmdAfterHeader(header);
+    for(uint32_t iImg = 0; iImg < imageCount; iImg++) {
+        header = _dyld_get_image_header(iImg);
+```
+        
+遍历 image，得到指向 image header 的指针
+
+```objc
+uintptr_t addressWSlide = address - (uintptr_t)_dyld_get_image_vmaddr_slide(iImg);
+uintptr_t cmdPtr = bs_firstCmdAfterHeader(header);
+```
+
 对指针 +1 操作，返回指向 load command 的指针
-	for(uint32_t iCmd = 0; iCmd < header->ncmds; iCmd++) {
-	                const struct load_command* loadCmd = (struct load_command*)cmdPtr;
-	                if(loadCmd->cmd == LC_SEGMENT) {
-	                    const struct segment_command* segCmd = (struct segment_command*)cmdPtr;
-	                    if(addressWSlide >= segCmd->vmaddr &&
-	                       addressWSlide < segCmd->vmaddr + segCmd->vmsize) {
-	                        return iImg;
-	                    }
-	                }
+
+```objc
+for(uint32_t iCmd = 0; iCmd < header->ncmds; iCmd++) {
+                const struct load_command* loadCmd = (struct load_command*)cmdPtr;
+                if(loadCmd->cmd == LC_SEGMENT) {
+                    const struct segment_command* segCmd = (struct segment_command*)cmdPtr;
+                    if(addressWSlide >= segCmd->vmaddr &&
+                       addressWSlide < segCmd->vmaddr + segCmd->vmsize) {
+                        return iImg;
+                    }
+                }
+```
+
 如果某个 segment 包含这个地址，那么该地址应大于 segment 的起始地址，小于 segment 的起始地址 + segment 的大小。
 
 ##### 定位镜像的符号表
@@ -290,28 +312,38 @@ LR 寄存器在子程序调用时会存储 PC 的值，即返回值。
 接下来看看段基址的获取：
 虚拟地址偏移量 = 虚拟地址（vmaddr） - 文件偏移量（fileoff）
 段基址 = 虚拟地址偏移量 +  ASLR的偏移量
-	const uintptr_t imageVMAddrSlide = (uintptr_t)_dyld_get_image_vmaddr_slide(idx);
-	// ALSR
-	const uintptr_t addressWithSlide = address - imageVMAddrSlide;
-	const uintptr_t segmentBase = bs_segmentBaseOfImageIndex(idx) + imageVMAddrSlide;
+
+```objc 
+const uintptr_t imageVMAddrSlide = (uintptr_t)_dyld_get_image_vmaddr_slide(idx);
+// ALSR
+const uintptr_t addressWithSlide = address - imageVMAddrSlide;
+const uintptr_t segmentBase = bs_segmentBaseOfImageIndex(idx) + imageVMAddrSlide;
+```
+	
 有了段基址，获取符号表和字符串表就只是计算下 symoff 和 stroff 偏移量了：
-	const BS_NLIST* symbolTable = (BS_NLIST*)(segmentBase + symtabCmd->symoff);
-	const uintptr_t stringTable = segmentBase + symtabCmd->stroff;
+
+```objc
+const BS_NLIST* symbolTable = (BS_NLIST*)(segmentBase + symtabCmd->symoff);
+const uintptr_t stringTable = segmentBase + symtabCmd->stroff;
+```
 
 ##### 找到最匹配的符号
 递归查找离 addressWithSlide 更近的函数入口地址，因为 addressWithSlide 肯定大于某个函数的入口。
-	for(uint32_t iSym = 0; iSym < symtabCmd->nsyms; iSym++) {
-	                // If n_value is 0, the symbol refers to an external object.
-	    if(symbolTable[iSym].n_value != 0) {
-	            uintptr_t symbolBase = symbolTable[iSym].n_value;
-	                 uintptr_t currentDistance = addressWithSlide - symbolBase;
-	                  if((addressWithSlide >= symbolBase) &&
-	                       (currentDistance <= bestDistance)) {
-	                        bestMatch = symbolTable + iSym;
-	                        bestDistance = currentDistance;
-	                    }
-	        }
-	}
+
+```objc
+for(uint32_t iSym = 0; iSym < symtabCmd->nsyms; iSym++) {
+                // If n_value is 0, the symbol refers to an external object.
+    if(symbolTable[iSym].n_value != 0) {
+            uintptr_t symbolBase = symbolTable[iSym].n_value;
+                 uintptr_t currentDistance = addressWithSlide - symbolBase;
+                  if((addressWithSlide >= symbolBase) &&
+                       (currentDistance <= bestDistance)) {
+                        bestMatch = symbolTable + iSym;
+                        bestDistance = currentDistance;
+                    }
+        }
+}
+```
 
 <h3 id="如何用 MachO 文件关联类的方法名">如何用 MachO 文件关联类的方法名</h3>
 MachO 文件的 `__Text` 段有 `__objc_classname` 和 `__objc_methname` 来表示类名和方法名，但是这两者之间是如何做到关联的呢？下面我以系统的计算器做例子，试着进一步研究下 MachO 文件。
@@ -339,16 +371,19 @@ MachO 文件的 `__Text` 段有 `__objc_classname` 和 `__objc_methname` 来表�
 ![][image-25]
 
 在这里会对应着类的结构体，代码拷自 class-dump
-	struct cd_objc2_class {
-	    uint64_t isa;
-	    uint64_t superclass;
-	    uint64_t cache;
-	    uint64_t vtable;
-	    uint64_t data; // points to class_ro_t
-	    uint64_t reserved1;
-	    uint64_t reserved2;
-	    uint64_t reserved3;
-	};
+
+```c
+struct cd_objc2_class {
+    uint64_t isa;
+    uint64_t superclass;
+    uint64_t cache;
+    uint64_t vtable;
+    uint64_t data; // points to class_ro_t
+    uint64_t reserved1;
+    uint64_t reserved2;
+    uint64_t reserved3;
+};
+```
 
 data 是我们感兴趣的，它指向 `class_ro_t `，熟悉 runtime 的话应该知道 `class_ro_t ` 存储了类在编译器就确定的属性、方法、协议等。
 所以上图顺着找下去 0x100020A68 就是data 的内存地址，再用上面的公式计算得到 0x20A68，我们在 `__objc_const`找到那里：
@@ -356,19 +391,23 @@ data 是我们感兴趣的，它指向 `class_ro_t `，熟悉 runtime 的话应
 ![][image-26]
 
 这里就是对应着 `class_ro_t `，来看看它在 class-dump 里的定义：
-	struct cd_objc2_class_ro_t {
-	    uint32_t flags;
-	    uint32_t instanceStart;
-	    uint32_t instanceSize;
-	    uint32_t reserved; // *** this field does not exist in the 32-bit version ***
-	    uint64_t ivarLayout;
-	    uint64_t name;
-	    uint64_t baseMethods;
-	    uint64_t baseProtocols;
-	    uint64_t ivars;
-	    uint64_t weakIvarLayout;
-	    uint64_t baseProperties;
-	};
+
+```c
+struct cd_objc2_class_ro_t {
+    uint32_t flags;
+    uint32_t instanceStart;
+    uint32_t instanceSize;
+    uint32_t reserved; // *** this field does not exist in the 32-bit version ***
+    uint64_t ivarLayout;
+    uint64_t name;
+    uint64_t baseMethods;
+    uint64_t baseProtocols;
+    uint64_t ivars;
+    uint64_t weakIvarLayout;
+    uint64_t baseProperties;
+};
+```
+	
 最终 0x20A80 就是name，0x20A88 就是 baseMethods。name 对应的正好是 0x1ABCE，类名是 BitFieldBox。baseMethods 指向内存 0x100020A00，该地址对应的数据是 18 00 00 00 04 00 00 00 表示 entsize 和 count 方法数，在这8个字节之后就是 name 方法名，types 方法类型， imp 函数指针了，所以方法名处的数据为 0x1000165e8 刚好对应 initWithFrame:
 将结论用 class-dump 验证可得 BitFieldBox 的第一个方法是 initWithFrame
 
@@ -421,3 +460,4 @@ data 是我们感兴趣的，它指向 `class_ro_t `，熟悉 runtime 的话应
 [image-25]:	https://user-images.githubusercontent.com/5633917/37773272-210903b6-2e18-11e8-8d75-5612f5c24dbf.png
 [image-26]:	https://user-images.githubusercontent.com/5633917/37773857-aca7264a-2e19-11e8-848f-e40a00038f7f.png
 [image-27]:	https://user-images.githubusercontent.com/5633917/37774620-b04a4212-2e1b-11e8-9e45-22098920b939.png
+

@@ -1,10 +1,4 @@
----
-layout: post
-title: RunLoop 源码学习笔记
-date: 2018-04-14 15:54:22 +0800
-comments: true
-categories: 
----
+# 源码学习笔记
 
 RunLoop 是个老生常谈的话题了，一直以来对 RunLoop 的认识还停留在 [深入理解RunLoop](https://blog.ibireme.com/2015/05/18/runloop/)（ YY 大神） 等业内好文当中，对于自个来说仍有些知识盲区：
 

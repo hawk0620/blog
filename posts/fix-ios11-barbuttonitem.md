@@ -1,10 +1,4 @@
----
-layout: post
-title: "iOS 11 怎样为导航条上的 UIBarButtonItem 设置间距"
-date: 2018-01-06 14:28:20 +0800
-comments: true
-categories: 
----
+# iOS 11 怎样为导航条上的 UIBarButtonItem 设置间距
 
 以前我们常用 `fixedSpace` 的方式为 UINavigationBar 上的 UIBarButtonItem 设置间距：
 
@@ -17,8 +11,6 @@ negativeSpacer.width = -8;
 
 [self.navigationItem setLeftBarButtonItems:@[negativeSpacer, button] animated:NO];
 ```
-
-<!--more-->
 
 然而在 iOS 11 下 `UIBarButtonItem` width 属性不但失效了，`UIBarButtonItem` 也开始使用 auto layout 布局，对此我们需要设置 `UIBarButtonItem` 子 view 的约束。除此之外，苹果还修改了 `UINavigationBar` 的实现。直到 iOS 10 `UINavigationBar` 都是采用手动布局，所有的子 view 都是直接加在 `UINavigationBar` 上。但是，从 iOS 11 开始， `UINavigationBar` 使用了 auto layout 来布局它的内容子 view，并且子 view 加在了 `_UINavigationBarContentView` 上。
 
@@ -135,3 +127,4 @@ self.navigationItem.leftBarButtonItems = @[spacer, barButtonItem];
 [image-4]:	https://user-images.githubusercontent.com/5633917/34598273-b0486090-f226-11e7-998a-9d695a1f4bbc.jpeg
 [image-5]:	https://user-images.githubusercontent.com/5633917/34602108-8b91454c-f239-11e7-9677-9c8434ec0d8a.jpeg
 [image-6]:	https://user-images.githubusercontent.com/5633917/34602516-04f734b8-f23b-11e7-809a-5574dc5f6b3e.jpeg
+
