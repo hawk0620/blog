@@ -1,4 +1,4 @@
-#如何实现一个 AttributedLabel
+# 如何实现一个 AttributedLabel
 
 Core Text 是苹果提供的富文本排版技术，可以定制开发图文混排功能，DTCoreText、Nimbus、YYLabel 等优秀的开源库底层都是基于 Core Text 的封装和扩展。本文将介绍 Core Text 的基本用法，逐步讲解我是如何封装一个 [AttributedLabel][1] 的。
 

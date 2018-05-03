@@ -9,7 +9,8 @@
 * [获取调用堆栈][2]
 * [如何用 MachO 文件关联类的方法名](#如何用 MachO 文件关联类的方法名)
 
-<h3 id="Mach-O 文件格式">Mach-O 文件格式</h3>
+### Mach-O 文件格式
+
 先让我们看看 Mach-O 的大致构成
 
 ![][image-1]
@@ -345,7 +346,8 @@ for(uint32_t iSym = 0; iSym < symtabCmd->nsyms; iSym++) {
 }
 ```
 
-<h3 id="如何用 MachO 文件关联类的方法名">如何用 MachO 文件关联类的方法名</h3>
+### 如何用 MachO 文件关联类的方法名
+
 MachO 文件的 `__Text` 段有 `__objc_classname` 和 `__objc_methname` 来表示类名和方法名，但是这两者之间是如何做到关联的呢？下面我以系统的计算器做例子，试着进一步研究下 MachO 文件。
 使用 MachOView 打开系统计算机，先来看看 `__objc_classname` 和 `__objc_methname` 在 load commands 里的定义：
 
